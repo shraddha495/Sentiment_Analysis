@@ -9,7 +9,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# Custom CSS for Solar System background, glowing stars effect, and layout styling
+# Custom CSS with Animated Flying/Floating Stars & Solar System Background
 st.markdown("""
     <style>
     /* Animated Space & Solar System Background */
@@ -21,22 +21,30 @@ st.markdown("""
         overflow-x: hidden;
     }
     
-    /* Starry Background Effect */
-    .star-container {
+    /* Flying/Floating Animated Stars Effect */
+    @keyframes moveStars {
+        from { transform: translateY(0px); }
+        to { transform: translateY(-2000px); }
+    }
+
+    .star-field {
         position: fixed;
         top: 0;
         left: 0;
         width: 100%;
-        height: 100%;
+        height: 200%;
         pointer-events: none;
         z-index: 0;
         background-image: radial-gradient(2px 2px at 20px 30px, #ffffff, rgba(0,0,0,0)),
-                          radial-gradient(2px 2px at 40px 70px, #00f5ff, rgba(0,0,0,0)),
+                          radial-gradient(2px 2px at 40px 170px, #00f5ff, rgba(0,0,0,0)),
                           radial-gradient(1px 1px at 90px 40px, #ff007f, rgba(0,0,0,0)),
-                          radial-gradient(2px 2px at 160px 120px, #ffffff, rgba(0,0,0,0));
+                          radial-gradient(2px 2px at 160px 220px, #ffffff, rgba(0,0,0,0)),
+                          radial-gradient(1.5px 1.5px at 300px 250px, #7209b7, rgba(0,0,0,0)),
+                          radial-gradient(2px 2px at 450px 100px, #00b4d8, rgba(0,0,0,0));
         background-repeat: repeat;
-        background-size: 250px 250px;
-        opacity: 0.7;
+        background-size: 500px 500px;
+        animation: moveStars 60s linear infinite;
+        opacity: 0.8;
     }
 
     /* Main Glassmorphism Container Styling */
@@ -73,7 +81,7 @@ st.markdown("""
         box-shadow: 0 0 20px rgba(0, 180, 216, 0.6);
     }
     </style>
-    <div class="star-container"></div>
+    <div class="star-field"></div>
 """, unsafe_allow_html=True)
 
 # Load the trained model safely
@@ -104,8 +112,14 @@ if st.button("🚀 Analyze Sentiment"):
         st.error("❌ Error: Could not locate or load `sentiment.pkl`. Make sure the file is in the same directory as `app.py`.")
     else:
         try:
-            # Predict sentiment using the loaded MultinomialNB model/pipeline
-            prediction = model.predict([user_input])[0]
+            # Handles text prediction safely (supports lists, 1D/2D requirements depending on pipeline structure)
+            data_input = [user_input]
+            
+            try:
+                prediction = model.predict(data_input)[0]
+            except ValueError:
+                # Fallback reshape if the estimator expects a 2D array structure
+                prediction = model.predict(np.array(data_input).reshape(-1, 1))[0]
             
             st.markdown("---")
             st.markdown("### 🔭 Analysis Results:")
@@ -125,6 +139,6 @@ if st.button("🚀 Analyze Sentiment"):
                 
         except Exception as e:
             st.error(f"⚠️ Prediction Error: {e}")
-            st.info("Note: Ensure your `sentiment.pkl` file is a complete pipeline (including text vectorization) so it can accept raw text strings directly.")
+            st.info("Note: Make sure your `sentiment.pkl` contains a full scikit-learn Pipeline that handles both vectorization and classification from raw text strings.")
 
 st.markdown('</div>', unsafe_allow_html=True)
