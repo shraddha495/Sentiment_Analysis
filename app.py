@@ -1,53 +1,31 @@
 import os
 import pickle
-from flask import Flask, render_template_string, request
+import streamlit as st
 
-app = Flask(__name__)
+# Page Configuration
+st.set_page_config(
+    page_title="Cosmic Sentiment Analyzer", page_icon="🚀", layout="centered"
+)
 
-# Load the model/vectorizer from vector.pkl
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "vector.pkl")
-try:
-    with open(MODEL_PATH, "rb") as f:
-        model = pickle.load(f)
-except Exception as e:
-    model = None
-
-# HTML Template with Solar System, Flying Stars, and Category Form
-HTML_TEMPLATE = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cosmic Sentiment Analyzer</title>
+# Custom CSS for Solar System, Flying Stars, and Styling
+st.markdown(
+    """
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        /* Global Background */
+        .stApp {
             background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
             color: #ffffff;
-            min-height: 100vh;
-            overflow-x: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            position: relative;
         }
 
-        /* Flying Stars Background Effect */
+        /* Flying Stars Effect */
         .stars {
-            position: absolute;
+            position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
             pointer-events: none;
-            background: transparent;
-            z-index: 1;
+            z-index: 0;
         }
         .star {
             position: absolute;
@@ -56,22 +34,14 @@ HTML_TEMPLATE = """
             animation: fly linear infinite;
         }
         @keyframes fly {
-            from {
-                transform: translateY(0px) scale(0.5);
-                opacity: 0;
-            }
-            50% {
-                opacity: 1;
-            }
-            to {
-                transform: translateY(100vh) scale(1.2);
-                opacity: 0;
-            }
+            from { transform: translateY(0px) scale(0.5); opacity: 0; }
+            50% { opacity: 1; }
+            to { transform: translateY(100vh) scale(1.2); opacity: 0; }
         }
 
-        /* Solar System Background Effect */
+        /* Solar System Background */
         .solar-system {
-            position: absolute;
+            position: fixed;
             width: 100vw;
             height: 100vh;
             top: 0;
@@ -81,163 +51,73 @@ HTML_TEMPLATE = """
             display: flex;
             justify-content: center;
             align-items: center;
+            opacity: 0.25;
             overflow: hidden;
-            opacity: 0.35;
         }
         .sun {
-            width: 80px;
-            height: 80px;
+            width: 70px;
+            height: 70px;
             background: radial-gradient(circle, #ffcc00, #ff6600);
             border-radius: 50%;
-            box-shadow: 0 0 50px #ff3300;
+            box-shadow: 0 0 40px #ff3300;
             position: absolute;
         }
         .orbit {
             position: absolute;
-            border: 1px dashed rgba(255, 255, 255, 0.15);
+            border: 1px dashed rgba(255, 255, 255, 0.2);
             border-radius: 50%;
         }
         .planet {
             position: absolute;
             border-radius: 50%;
         }
-
-        /* Orbit 1 */
-        .orbit-1 { width: 200px; height: 200px; animation: spin 10s linear infinite; }
-        .planet-1 { width: 12px; height: 12px; background: #00ffff; top: -6px; left: calc(50% - 6px); box-shadow: 0 0 10px #00ffff; }
-
-        /* Orbit 2 */
-        .orbit-2 { width: 350px; height: 350px; animation: spin 18s linear infinite reverse; }
-        .planet-2 { width: 18px; height: 18px; background: #ff4757; top: -9px; left: calc(50% - 9px); box-shadow: 0 0 12px #ff4757; }
-
-        /* Orbit 3 */
-        .orbit-3 { width: 520px; height: 520px; animation: spin 25s linear infinite; }
-        .planet-3 { width: 24px; height: 24px; background: #2ed573; top: -12px; left: calc(50% - 12px); box-shadow: 0 0 15px #2ed573; }
+        .orbit-1 { width: 180px; height: 180px; animation: spin 10s linear infinite; }
+        .planet-1 { width: 10px; height: 10px; background: #00ffff; top: -5px; left: calc(50% - 5px); box-shadow: 0 0 8px #00ffff; }
+        
+        .orbit-2 { width: 320px; height: 320px; animation: spin 18s linear infinite reverse; }
+        .planet-2 { width: 16px; height: 16px; background: #ff4757; top: -8px; left: calc(50% - 8px); box-shadow: 0 0 10px #ff4757; }
 
         @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
 
-        /* UI Container */
-        .container {
+        /* Foreground container styling */
+        .block-container {
             position: relative;
             z-index: 2;
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(12px);
+            background: rgba(255, 255, 255, 0.04);
+            backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 40px;
+            padding: 30px;
             border-radius: 16px;
-            width: 100%;
-            max-width: 480px;
             box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
-            text-align: center;
+            margin-top: 5vh;
         }
+        
         h1 {
-            margin-bottom: 20px;
-            font-size: 26px;
-            letter-spacing: 1px;
+            text-align: center;
             color: #f1f2f6;
+            font-size: 28px;
         }
-        .form-group {
-            margin-bottom: 20px;
-            text-align: left;
+        
+        .stTextArea textarea {
+            background: rgba(0, 0, 0, 0.4) !important;
+            color: #fff !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
         }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 14px;
-            color: #a4b0be;
-        }
-        textarea, select {
-            width: 100%;
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            background: rgba(0, 0, 0, 0.3);
-            color: #fff;
-            font-size: 15px;
-            outline: none;
-            transition: border-color 0.3s;
-        }
-        textarea:focus, select:focus {
-            border-color: #00ffff;
-        }
-        button {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 8px;
-            background: linear-gradient(135deg, #00b4d8, #0077b6);
-            color: white;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 180, 216, 0.4);
-        }
-        .result {
-            margin-top: 25px;
-            padding: 15px;
-            border-radius: 8px;
-            background: rgba(0, 0, 0, 0.4);
-            font-size: 18px;
-            font-weight: bold;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .positive { color: #2ed573; }
-        .negative { color: #ff4757; }
     </style>
-</head>
-<body>
 
-    <!-- Flying Stars Container -->
     <div class="stars" id="stars"></div>
-
-    <!-- Solar System Background -->
     <div class="solar-system">
         <div class="sun"></div>
         <div class="orbit orbit-1"><div class="planet planet-1"></div></div>
         <div class="orbit orbit-2"><div class="planet planet-2"></div></div>
-        <div class="orbit orbit-3"><div class="planet planet-3"></div></div>
-    </div>
-
-    <!-- Main UI Card -->
-    <div class="container">
-        <h1>Sentiment Analyzer</h1>
-        <form method="POST">
-            <div class="form-group">
-                <label for="category">Select Domain / Category:</label>
-                <select id="category" name="category">
-                    <option value="general" style="background: #111;">General Review</option>
-                    <option value="product" style="background: #111;">Product Feedback</option>
-                    <option value="movie" style="background: #111;">Movie Review</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="text">Enter Text for Analysis:</label>
-                <textarea id="text" name="text" rows="4" placeholder="Type your text here..." required>{{ user_text if user_text else '' }}</textarea>
-            </div>
-            
-            <button type="submit">Predict Sentiment</button>
-        </form>
-
-        {% if prediction %}
-        <div class="result">
-            Prediction: <span class="{{ prediction | lower }}">{{ prediction }}</span>
-        </div>
-        {% endif %}
     </div>
 
     <script>
-        // Generate Dynamic Flying Stars
         const starsContainer = document.getElementById('stars');
-        const numStars = 60;
-        for (let i = 0; i < numStars; i++) {
+        for (let i = 0; i < 40; i++) {
             const star = document.createElement('div');
             star.classList.add('star');
             const size = Math.random() * 3 + 1;
@@ -250,29 +130,63 @@ HTML_TEMPLATE = """
             starsContainer.appendChild(star);
         }
     </script>
-</body>
-</html>
-"""
+    """,
+    unsafe_allow_html=True,
+)
 
-@app.route("/", methods=["GET", "POST"])
-def index():
-    prediction = None
-    user_text = ""
-    if request.method == "POST":
-        user_text = request.form.get("text")
-        category = request.form.get("category") # Categorical form field captured
-        
-        if model and user_text:
-            try:
-                # If your model expects a list/array of text inputs:
-                pred = model.predict([user_text])
-                prediction = str(pred[0])
-            except Exception as e:
-                prediction = f"Error during prediction: {str(e)}"
-        else:
-            prediction = "Model not loaded or text missing."
+# App UI Content
+st.markdown("<h1>Cosmic Sentiment Analyzer</h1>", unsafe_allow_html=True)
 
-    return render_template_string(HTML_TEMPLATE, prediction=prediction, user_text=user_text)
+# Category selection dropdown
+category = st.selectbox(
+    "Select Domain / Category:",
+    ["General Review", "Product Feedback", "Movie Review"],
+)
 
-if __name__ == "__main__":
-    app.run(debug=True)
+# Text input area
+user_text = st.text_area(
+    "Enter Text for Analysis:", placeholder="Type your text here..."
+)
+
+# Load Model with safe error handling
+model_path = os.path.join(os.path.dirname(__file__), "vector.pkl")
+
+
+@st.cache_resource
+def load_model():
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(
+            f"Could not find '{model_path}' in the repository directory."
+        )
+    with open(model_path, "rb") as f:
+        return pickle.load(f)
+
+
+try:
+    model = load_model()
+except Exception as e:
+    st.error(f"**Model Loading Error:** {e}")
+    model = None
+
+# Prediction button
+if st.button("Predict Sentiment", use_container_width=True):
+    if not user_text.strip():
+        st.warning("Please enter some text before predicting.")
+    elif model is None:
+        st.error("Model is not available due to loading errors.")
+    else:
+    try:
+            # Predict using the model (assumes pipeline handles vectorization)
+            prediction = model.predict([user_text])[0]
+
+            # Display outcome with styling
+            st.markdown(
+                f"""
+                <div style="margin-top: 20px; padding: 15px; border-radius: 8px; background: rgba(0, 0, 0, 0.4); text-align: center; border: 1px solid rgba(255,255,255,0.1);">
+                    Prediction: <span style="font-size: 20px; font-weight: bold; color: {'#2ed573' if str(prediction).lower() in ['positive', '1'] else '#ff4757'};">{prediction}</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        except Exception as e:
+            st.error(f"**Prediction Error:** {e}")
