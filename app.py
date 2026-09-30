@@ -151,7 +151,6 @@ user_text = st.text_area(
 # Load Model with safe error handling
 model_path = os.path.join(os.path.dirname(__file__), "vector.pkl")
 
-
 @st.cache_resource
 def load_model():
     if not os.path.exists(model_path):
@@ -160,7 +159,6 @@ def load_model():
         )
     with open(model_path, "rb") as f:
         return pickle.load(f)
-
 
 try:
     model = load_model()
@@ -175,7 +173,7 @@ if st.button("Predict Sentiment", use_container_width=True):
     elif model is None:
         st.error("Model is not available due to loading errors.")
     else:
-    try:
+        try:
             # Predict using the model (assumes pipeline handles vectorization)
             prediction = model.predict([user_text])[0]
 
