@@ -148,40 +148,54 @@ user_text = st.text_area(
     "Enter Text for Analysis:", placeholder="Type your text here..."
 )
 
-# Load Model with safe error handling
+# Load Model/Vectorizer file
 model_path = os.path.join(os.path.dirname(__file__), "vector.pkl")
 
 @st.cache_resource
-def load_model():
+def load_saved_object():
     if not os.path.exists(model_path):
-        raise FileNotFoundError(
-            f"Could not find '{model_path}' in the repository directory."
-        )
+        raise FileNotFoundError(f"Could not find '{model_path}' in the repository directory.")
     with open(model_path, "rb") as f:
         return pickle.load(f)
 
+loaded_obj = None
+load_error = None
 try:
-    model = load_model()
+    loaded_obj = load_saved_object()
 except Exception as e:
+    load_error = str(e)
     st.error(f"**Model Loading Error:** {e}")
-    model = None
 
 # Prediction button
 if st.button("Predict Sentiment", use_container_width=True):
     if not user_text.strip():
         st.warning("Please enter some text before predicting.")
-    elif model is None:
-        st.error("Model is not available due to loading errors.")
+    elif load_error:
+        st.error("Cannot predict due to model loading errors.")
     else:
         try:
-            # Predict using the model (assumes pipeline handles vectorization)
-            prediction = model.predict([user_text])[0]
+            # Handle Tuple case: (vectorizer, classifier)
+            if isinstance(loaded_obj, tuple) and len(loaded_obj) == 2:
+                vectorizer, classifier = loaded_obj
+                transformed_text = vectorizer.transform([user_text])
+                prediction = classifier.predict(transformed_text)[0]
+            
+            # Handle Pipeline or Model object with a predict method directly
+            elif hasattr(loaded_obj, "predict"):
+                prediction = loaded_obj.predict([user_text])[0]
+            
+            # Handle case where vector.pkl is ONLY a vectorizer with no classifier model
+            else:
+                raise TypeError(
+                    "The loaded object is only a vectorizer and lacks a classifier model. "
+                    "Please save your model and vectorizer together as a tuple `(vectorizer, model)` or use a Pipeline."
+                )
 
             # Display outcome with styling
             st.markdown(
                 f"""
                 <div style="margin-top: 20px; padding: 15px; border-radius: 8px; background: rgba(0, 0, 0, 0.4); text-align: center; border: 1px solid rgba(255,255,255,0.1);">
-                    Prediction: <span style="font-size: 20px; font-weight: bold; color: {'#2ed573' if str(prediction).lower() in ['positive', '1'] else '#ff4757'};">{prediction}</span>
+                    Prediction: <span style="font-size: 20px; font-weight: bold; color: {'#2ed573' if str(prediction).lower() in ['positive', '1', 'joy'] else '#ff4757'};">{prediction}</span>
                 </div>
                 """,
                 unsafe_allow_html=True,
