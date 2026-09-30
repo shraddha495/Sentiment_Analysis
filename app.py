@@ -9,7 +9,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# Custom CSS with Animated Flying/Floating Stars & Solar System Background
+# Custom CSS with Multi-Sized Flying Stars & Solar System Background
 st.markdown("""
     <style>
     /* Animated Space & Solar System Background */
@@ -21,13 +21,18 @@ st.markdown("""
         overflow-x: hidden;
     }
     
-    /* Flying/Floating Animated Stars Effect */
-    @keyframes moveStars {
+    /* Multi-Sized Flying/Floating Animated Stars Effect */
+    @keyframes moveStarsSlow {
         from { transform: translateY(0px); }
         to { transform: translateY(-2000px); }
     }
+    @keyframes moveStarsFast {
+        from { transform: translateY(0px); }
+        to { transform: translateY(-1500px); }
+    }
 
-    .star-field {
+    /* Small Stars Layer */
+    .star-field-small {
         position: fixed;
         top: 0;
         left: 0;
@@ -35,16 +40,33 @@ st.markdown("""
         height: 200%;
         pointer-events: none;
         z-index: 0;
-        background-image: radial-gradient(2px 2px at 20px 30px, #ffffff, rgba(0,0,0,0)),
-                          radial-gradient(2px 2px at 40px 170px, #00f5ff, rgba(0,0,0,0)),
-                          radial-gradient(1px 1px at 90px 40px, #ff007f, rgba(0,0,0,0)),
-                          radial-gradient(2px 2px at 160px 220px, #ffffff, rgba(0,0,0,0)),
-                          radial-gradient(1.5px 1.5px at 300px 250px, #7209b7, rgba(0,0,0,0)),
-                          radial-gradient(2px 2px at 450px 100px, #00b4d8, rgba(0,0,0,0));
+        background-image: radial-gradient(1px 1px at 15px 25px, #ffffff, rgba(0,0,0,0)),
+                          radial-gradient(1px 1px at 50px 120px, #00f5ff, rgba(0,0,0,0)),
+                          radial-gradient(1px 1px at 100px 80px, #ffffff, rgba(0,0,0,0)),
+                          radial-gradient(1px 1px at 200px 200px, #ff007f, rgba(0,0,0,0));
         background-repeat: repeat;
-        background-size: 500px 500px;
-        animation: moveStars 60s linear infinite;
-        opacity: 0.8;
+        background-size: 300px 300px;
+        animation: moveStarsFast 40s linear infinite;
+        opacity: 0.6;
+    }
+
+    /* Medium & Large Stars Layer */
+    .star-field-large {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 200%;
+        pointer-events: none;
+        z-index: 0;
+        background-image: radial-gradient(2.5px 2.5px at 40px 60px, #ffffff, rgba(0,0,0,0)),
+                          radial-gradient(3.5px 3.5px at 150px 220px, #00b4d8, rgba(0,0,0,0)),
+                          radial-gradient(2px 2px at 250px 100px, #7209b7, rgba(0,0,0,0)),
+                          radial-gradient(3px 3px at 350px 300px, #ffffff, rgba(0,0,0,0));
+        background-repeat: repeat;
+        background-size: 600px 600px;
+        animation: moveStarsSlow 75s linear infinite;
+        opacity: 0.9;
     }
 
     /* Main Glassmorphism Container Styling */
@@ -81,7 +103,8 @@ st.markdown("""
         box-shadow: 0 0 20px rgba(0, 180, 216, 0.6);
     }
     </style>
-    <div class="star-field"></div>
+    <div class="star-field-small"></div>
+    <div class="star-field-large"></div>
 """, unsafe_allow_html=True)
 
 # Load the trained model safely
@@ -112,14 +135,26 @@ if st.button("🚀 Analyze Sentiment"):
         st.error("❌ Error: Could not locate or load `sentiment.pkl`. Make sure the file is in the same directory as `app.py`.")
     else:
         try:
-            # Handles text prediction safely (supports lists, 1D/2D requirements depending on pipeline structure)
-            data_input = [user_input]
-            
-            try:
-                prediction = model.predict(data_input)[0]
-            except ValueError:
-                # Fallback reshape if the estimator expects a 2D array structure
-                prediction = model.predict(np.array(data_input).reshape(-1, 1))[0]
+            # Check if the loaded object is a pipeline or raw model.
+            # If your pickle file is just the model estimator without a vectorizer, 
+            # it throws the dtype='numeric' error because it cannot read raw text strings directly.
+            if hasattr(model, "predict"):
+                # Try predicting directly (works if it's a full pipeline)
+                try:
+                    prediction = model.predict([user_input])[0]
+                except ValueError as ve:
+                    # If it complains about numeric/string incompatibility, explain clearly how to fix the training pickle
+                    if "dtype='numeric'" in str(ve) or "string" in str(ve).lower():
+                        st.error("⚠️ **Model Structure Error:** Your `sentiment.pkl` file contains a raw classifier model rather than a full scikit-learn `Pipeline` (which bundles the Vectorizer and Model together).")
+                        st.info("💡 **How to fix:** When saving your model, make sure you save a pipeline containing both your text vectorizer (e.g., `TfidfVectorizer`) and your classifier like this:\n\n"
+                                "```python\n"
+                                "from sklearn.pipeline import make_pipeline\n"
+                                "pipe = make_pipeline(TfidfVectorizer(), clf)\n"
+                                "pickle.dump(pipe, open('sentiment.pkl', 'wb'))\n"
+                                "```")
+                        st.stop()
+                    else:
+                        raise ve
             
             st.markdown("---")
             st.markdown("### 🔭 Analysis Results:")
@@ -139,6 +174,5 @@ if st.button("🚀 Analyze Sentiment"):
                 
         except Exception as e:
             st.error(f"⚠️ Prediction Error: {e}")
-            st.info("Note: Make sure your `sentiment.pkl` contains a full scikit-learn Pipeline that handles both vectorization and classification from raw text strings.")
 
 st.markdown('</div>', unsafe_allow_html=True)
