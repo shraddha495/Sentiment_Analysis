@@ -107,17 +107,26 @@ st.markdown("""
     <div class="star-field-large"></div>
 """, unsafe_allow_html=True)
 
-# Load the trained model safely
+# Load the trained model and vectorizer safely
 @st.cache_resource
-def load_model():
+def load_assets():
+    model = None
+    vectorizer = None
     try:
         with open('sentiment.pkl', 'rb') as file:
             model = pickle.load(file)
-        return model
     except Exception as e:
-        return None
+        pass
+        
+    try:
+        with open('vectorizer.pkl', 'rb') as file:
+            vectorizer = pickle.load(file)
+    except Exception as e:
+        pass
+        
+    return model, vectorizer
 
-model = load_model()
+model, vectorizer = load_assets()
 
 # App Layout Container
 st.markdown('<div class="main-content">', unsafe_allow_html=True)
@@ -132,29 +141,23 @@ if st.button("🚀 Analyze Sentiment"):
     if not user_input.strip():
         st.warning("⚠️ Please provide text before launching the analysis.")
     elif model is None:
-        st.error("❌ Error: Could not locate or load `sentiment.pkl`. Make sure the file is in the same directory as `app.py`.")
+        st.error("❌ Error: Could not locate or load `sentiment.pkl`. Make sure the file is in the same directory.")
     else:
         try:
-            # Check if the loaded object is a pipeline or raw model.
-            # If your pickle file is just the model estimator without a vectorizer, 
-            # it throws the dtype='numeric' error because it cannot read raw text strings directly.
+            # Check how model is structured
+            # Scenario A: `sentiment.pkl` is a full pipeline (handles text string directly)
             if hasattr(model, "predict"):
-                # Try predicting directly (works if it's a full pipeline)
                 try:
                     prediction = model.predict([user_input])[0]
                 except ValueError as ve:
-                    # If it complains about numeric/string incompatibility, explain clearly how to fix the training pickle
-                    if "dtype='numeric'" in str(ve) or "string" in str(ve).lower():
-                        st.error("⚠️ **Model Structure Error:** Your `sentiment.pkl` file contains a raw classifier model rather than a full scikit-learn `Pipeline` (which bundles the Vectorizer and Model together).")
-                        st.info("💡 **How to fix:** When saving your model, make sure you save a pipeline containing both your text vectorizer (e.g., `TfidfVectorizer`) and your classifier like this:\n\n"
-                                "```python\n"
-                                "from sklearn.pipeline import make_pipeline\n"
-                                "pipe = make_pipeline(TfidfVectorizer(), clf)\n"
-                                "pickle.dump(pipe, open('sentiment.pkl', 'wb'))\n"
-                                "```")
-                        st.stop()
+                    # Scenario B: It's a raw model requiring transformation via a vectorizer file
+                    if vectorizer is not None:
+                        transformed_text = vectorizer.transform([user_input])
+                        prediction = model.predict(transformed_text)[0]
                     else:
-                        raise ve
+                        st.error("⚠️ **Dimension/Type Error Detected:** Your `sentiment.pkl` is a raw model and needs a separate vectorizer (like `vectorizer.pkl`) to transform text into a 2D numerical array first.")
+                        st.info("💡 **How to fix:** Save your vectorizer during training via `pickle.dump(vectorizer, open('vectorizer.pkl', 'wb'))` alongside your model, or bundle them into a single scikit-learn `Pipeline`.")
+                        st.stop()
             
             st.markdown("---")
             st.markdown("### 🔭 Analysis Results:")
